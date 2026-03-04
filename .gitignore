@@ -1,5 +1,6 @@
 # Tuist / Xcode generated artifacts
 Derived/
+.derived-data/
 *.xcodeproj/
 *.xcworkspace/
 

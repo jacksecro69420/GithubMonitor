@@ -6,23 +6,21 @@ cd "$ROOT_DIR"
 
 ./stop-menubar.sh || true
 
+DERIVED_DATA_PATH="$ROOT_DIR/.derived-data"
+
 TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
-TUIST_SKIP_UPDATE_CHECK=1 tuist build GithubMonitor --configuration Debug
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild build \
+  -scheme GithubMonitor \
+  -workspace GithubMonitor.xcworkspace \
+  -configuration Debug \
+  -destination "platform=macOS,arch=arm64" \
+  -derivedDataPath "$DERIVED_DATA_PATH"
 
-LATEST_APP_PATH=""
-LATEST_MTIME=0
+APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug/GithubMonitor.app"
 
-while IFS= read -r app_path; do
-  app_mtime="$(stat -f "%m" "$app_path")"
-  if [[ "$app_mtime" -gt "$LATEST_MTIME" ]]; then
-    LATEST_MTIME="$app_mtime"
-    LATEST_APP_PATH="$app_path"
-  fi
-done < <(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path "*/Build/Products/Debug/GithubMonitor.app")
-
-if [[ -z "$LATEST_APP_PATH" ]]; then
-  echo "Could not locate GithubMonitor.app in DerivedData" >&2
+if [[ ! -d "$APP_PATH" ]]; then
+  echo "Could not locate GithubMonitor.app at $APP_PATH" >&2
   exit 1
 fi
 
-open "$LATEST_APP_PATH"
+open "$APP_PATH"
