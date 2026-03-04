@@ -101,7 +101,7 @@ struct MenuBarContentView: View {
 
     private var signedInView: some View {
         Group {
-            if store.isLoading {
+            if store.isLoading, store.pullRequests.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ProgressView()
                     Text("Refreshing pull requests...")
@@ -113,17 +113,67 @@ struct MenuBarContentView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(store.pullRequests) { pullRequest in
-                            PullRequestRowView(pullRequest: pullRequest) {
-                                store.openPullRequest(pullRequest)
-                            }
+                VStack(alignment: .leading, spacing: 8) {
+                    repoFiltersBar
+
+                    HStack {
+                        Text("\(store.filteredPullRequests.count) result\(store.filteredPullRequests.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if let selectedRepository = store.selectedRepositoryFilter {
+                            Text(selectedRepository)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 6) {
+                            ForEach(store.filteredPullRequests) { pullRequest in
+                                PullRequestRowView(pullRequest: pullRequest) {
+                                    store.openPullRequest(pullRequest)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
+        }
+    }
+
+    private var repoFiltersBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Button {
+                    store.selectRepositoryFilter(nil)
+                } label: {
+                    PillView(
+                        text: "All \(store.pullRequests.count)",
+                        color: .secondary,
+                        isSelected: store.selectedRepositoryFilter == nil
+                    )
+                }
+                .buttonStyle(.plain)
+
+                ForEach(store.recentRepositoryFilters, id: \.self) { repository in
+                    Button {
+                        store.selectRepositoryFilter(repository)
+                    } label: {
+                        PillView(
+                            text: "\(shortRepositoryName(repository)) \(count(for: repository))",
+                            color: color(for: repository),
+                            isSelected: store.selectedRepositoryFilter == repository
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help(repository)
+                }
+            }
+            .padding(.vertical, 1)
         }
     }
 
@@ -160,5 +210,24 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func shortRepositoryName(_ repository: String) -> String {
+        if let last = repository.split(separator: "/").last {
+            return String(last)
+        }
+        return repository
+    }
+
+    private func count(for repository: String) -> Int {
+        store.pullRequests.filter { $0.repositoryNameWithOwner == repository }.count
+    }
+
+    private func color(for repository: String) -> Color {
+        let palette: [Color] = [.blue, .mint, .orange, .teal, .indigo, .green]
+        let hash = repository.unicodeScalars.reduce(0) { partial, scalar in
+            ((partial * 31) + Int(scalar.value)) & 0x7fff_ffff
+        }
+        return palette[hash % palette.count]
     }
 }

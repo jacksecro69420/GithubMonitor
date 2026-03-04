@@ -6,28 +6,50 @@ struct PullRequestRowView: View {
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("#\(pullRequest.number) \(pullRequest.title)")
-                    .font(.subheadline)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Text("#\(pullRequest.number) \(pullRequest.title)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-                HStack {
+                    Spacer(minLength: 6)
+
+                    PillView(
+                        text: pullRequest.status.rawValue,
+                        color: pullRequest.status.pillColor
+                    )
+                }
+
+                HStack(spacing: 6) {
                     Text(pullRequest.repositoryNameWithOwner)
-                        .font(.caption)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Spacer(minLength: 8)
+                    Text("•")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary.opacity(0.7))
 
                     Text(relativeDateText(from: pullRequest.updatedAt))
-                        .font(.caption2)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text("•")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary.opacity(0.7))
+
+                    Text("@\(pullRequest.authorLogin)")
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
             }
             .padding(.vertical, 6)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+            )
         }
         .buttonStyle(.plain)
     }

@@ -32,20 +32,32 @@ struct GitHubAPIClient {
         self.session = session
     }
 
-    func fetchOpenPullRequests(token: String, first: Int = 30) async throws -> OpenPullRequestsPayload {
+    func fetchOpenPullRequests(token: String, repositoriesFirst: Int = 40, pullRequestsFirst: Int = 20) async throws -> OpenPullRequestsPayload {
         let query = """
-        query OpenPullRequests($first: Int!) {
+        query OpenPullRequests($repositoriesFirst: Int!, $pullRequestsFirst: Int!) {
           viewer {
             login
-            pullRequests(first: $first, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            repositories(
+              first: $repositoriesFirst,
+              affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER],
+              isFork: false,
+              orderBy: {field: UPDATED_AT, direction: DESC}
+            ) {
               nodes {
-                id
-                number
-                title
-                url
-                updatedAt
-                repository {
-                  nameWithOwner
+                nameWithOwner
+                pullRequests(first: $pullRequestsFirst, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    id
+                    number
+                    title
+                    url
+                    updatedAt
+                    isDraft
+                    reviewDecision
+                    author {
+                      login
+                    }
+                  }
                 }
               }
             }
@@ -55,7 +67,10 @@ struct GitHubAPIClient {
 
         let payload = GraphQLRequest(
             query: query,
-            variables: ["first": .number(first)]
+            variables: [
+                "repositoriesFirst": .number(repositoriesFirst),
+                "pullRequestsFirst": .number(pullRequestsFirst)
+            ]
         )
 
         var request = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
@@ -93,15 +108,26 @@ struct GitHubAPIClient {
                 throw GitHubAPIError.invalidResponse
             }
 
-            let prs = viewer.pullRequests.nodes.map {
-                PullRequest(
-                    id: $0.id,
-                    number: $0.number,
-                    title: $0.title,
-                    url: $0.url,
-                    repositoryNameWithOwner: $0.repository.nameWithOwner,
-                    updatedAt: $0.updatedAt
-                )
+            var prsByID: [String: PullRequest] = [:]
+
+            for repository in viewer.repositories.nodes {
+                for node in repository.pullRequests.nodes {
+                    prsByID[node.id] = PullRequest(
+                        id: node.id,
+                        number: node.number,
+                        title: node.title,
+                        url: node.url,
+                        repositoryNameWithOwner: repository.nameWithOwner,
+                        authorLogin: node.author?.login ?? "unknown",
+                        updatedAt: node.updatedAt,
+                        isDraft: node.isDraft,
+                        reviewDecision: node.reviewDecision
+                    )
+                }
+            }
+
+            let prs = prsByID.values.sorted { lhs, rhs in
+                lhs.updatedAt > rhs.updatedAt
             }
 
             return OpenPullRequestsPayload(login: viewer.login, pullRequests: prs)
@@ -143,6 +169,15 @@ private struct OpenPullRequestsGraphQLResponse: Decodable {
 
     struct Viewer: Decodable {
         let login: String
+        let repositories: RepositoryConnection
+    }
+
+    struct RepositoryConnection: Decodable {
+        let nodes: [RepositoryNode]
+    }
+
+    struct RepositoryNode: Decodable {
+        let nameWithOwner: String
         let pullRequests: PullRequestConnection
     }
 
@@ -156,11 +191,13 @@ private struct OpenPullRequestsGraphQLResponse: Decodable {
         let title: String
         let url: URL
         let updatedAt: Date
-        let repository: Repository
+        let isDraft: Bool
+        let reviewDecision: PullRequestReviewDecision?
+        let author: Author?
     }
 
-    struct Repository: Decodable {
-        let nameWithOwner: String
+    struct Author: Decodable {
+        let login: String
     }
 
     struct GraphQLErrorItem: Decodable {

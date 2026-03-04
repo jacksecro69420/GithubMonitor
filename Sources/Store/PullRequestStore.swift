@@ -24,9 +24,38 @@ final class PullRequestStore {
     private(set) var sessionState: SessionState = .signedOut
     private(set) var currentUser: String?
     private(set) var pullRequests: [PullRequest] = []
+    private(set) var selectedRepositoryFilter: String?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var lastRefreshedAt: Date?
+
+    var recentRepositoryFilters: [String] {
+        let latestByRepo = Dictionary(grouping: pullRequests, by: \.repositoryNameWithOwner)
+            .compactMap { repository, pullRequests -> (String, Date)? in
+                guard let latestDate = pullRequests.map(\.updatedAt).max() else {
+                    return nil
+                }
+                return (repository, latestDate)
+            }
+            .sorted { lhs, rhs in
+                lhs.1 > rhs.1
+            }
+
+        return Array(latestByRepo.map(\.0).prefix(12))
+    }
+
+    var filteredPullRequests: [PullRequest] {
+        let base: [PullRequest]
+        if let selectedRepositoryFilter, !selectedRepositoryFilter.isEmpty {
+            base = pullRequests.filter { $0.repositoryNameWithOwner == selectedRepositoryFilter }
+        } else {
+            base = pullRequests
+        }
+
+        return base.sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
+        }
+    }
 
     init(
         config: AppConfig = AppConfig(),
@@ -121,6 +150,7 @@ final class PullRequestStore {
         accessToken = nil
         currentUser = nil
         pullRequests = []
+        selectedRepositoryFilter = nil
         sessionState = .signedOut
         errorMessage = nil
 
@@ -147,6 +177,9 @@ final class PullRequestStore {
             let payload = try await apiClient.fetchOpenPullRequests(token: token)
             currentUser = payload.login
             pullRequests = payload.pullRequests
+            if let selectedRepositoryFilter, !pullRequests.contains(where: { $0.repositoryNameWithOwner == selectedRepositoryFilter }) {
+                self.selectedRepositoryFilter = nil
+            }
             lastRefreshedAt = Date()
             sessionState = .signedIn
             isLoading = false
@@ -172,6 +205,14 @@ final class PullRequestStore {
 
     func openPullRequest(_ pullRequest: PullRequest) {
         NSWorkspace.shared.open(pullRequest.url)
+    }
+
+    func selectRepositoryFilter(_ repositoryNameWithOwner: String?) {
+        if let repositoryNameWithOwner, !repositoryNameWithOwner.isEmpty {
+            selectedRepositoryFilter = repositoryNameWithOwner
+        } else {
+            selectedRepositoryFilter = nil
+        }
     }
 
     private func completeSignIn(with token: String) async {
