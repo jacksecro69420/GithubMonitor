@@ -1,0 +1,10 @@
+# Tuist / Xcode generated artifacts
+Derived/
+*.xcodeproj/
+*.xcworkspace/
+
+# macOS
+.DS_Store
+
+# Local Codex metadata
+.codex/

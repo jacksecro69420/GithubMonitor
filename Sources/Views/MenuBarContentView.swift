@@ -1,0 +1,164 @@
+import SwiftUI
+
+struct MenuBarContentView: View {
+    let store: PullRequestStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+
+            if let errorMessage = store.errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            content
+
+            Spacer(minLength: 0)
+
+            footer
+        }
+        .padding(14)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch store.sessionState {
+        case .missingClientID:
+            missingClientIDView
+        case .signedOut:
+            signedOutView
+        case let .awaitingAuthorization(authorization):
+            authorizationView(authorization)
+        case .signedIn:
+            signedInView
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Open Pull Requests")
+                .font(.headline)
+
+            Spacer()
+
+            if let currentUser = store.currentUser, case .signedIn = store.sessionState {
+                Text("@\(currentUser)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var signedOutView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sign in to list your recently updated open pull requests.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button {
+                Task {
+                    await store.beginDeviceLogin()
+                }
+            } label: {
+                if store.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("Sign in with GitHub")
+                }
+            }
+        }
+    }
+
+    private func authorizationView(_ authorization: DeviceAuthorization) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("1) Open GitHub verification page")
+            Text("2) Enter this code:")
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+
+            Text(authorization.userCode)
+                .font(.system(.title3, design: .monospaced).bold())
+                .textSelection(.enabled)
+
+            HStack {
+                Button("Open Verification Page") {
+                    store.openVerificationPage()
+                }
+
+                Button("Cancel") {
+                    store.cancelAuthorization()
+                }
+            }
+
+            Text("Waiting for GitHub authorization...")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var signedInView: some View {
+        Group {
+            if store.isLoading {
+                VStack(alignment: .leading, spacing: 6) {
+                    ProgressView()
+                    Text("Refreshing pull requests...")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if store.pullRequests.isEmpty {
+                Text("No open pull requests found.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(store.pullRequests) { pullRequest in
+                            PullRequestRowView(pullRequest: pullRequest) {
+                                store.openPullRequest(pullRequest)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private var missingClientIDView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("GitHub OAuth client ID is not configured.")
+                .font(.subheadline)
+
+            Text("Set GitHubOAuthClientID in Project.swift (Info.plist) or export GITHUB_CLIENT_ID before launching.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            if case .signedIn = store.sessionState {
+                Button("Refresh") {
+                    Task {
+                        await store.refresh()
+                    }
+                }
+
+                Button("Sign out") {
+                    store.signOut()
+                }
+            }
+
+            Spacer()
+
+            if let lastRefreshedAt = store.lastRefreshedAt {
+                Text("Updated \(lastRefreshedAt.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
