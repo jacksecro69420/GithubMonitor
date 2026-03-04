@@ -6,6 +6,9 @@ struct MenuBarContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if case .signedIn = store.sessionState {
+                signedInToolbar
+            }
 
             if let errorMessage = store.errorMessage {
                 Text(errorMessage)
@@ -16,10 +19,13 @@ struct MenuBarContentView: View {
             content
 
             Spacer(minLength: 0)
-
-            footer
         }
         .padding(14)
+        .onAppear {
+            Task {
+                await store.refreshOnMenuOpenIfNeeded()
+            }
+        }
     }
 
     @ViewBuilder
@@ -102,12 +108,7 @@ struct MenuBarContentView: View {
     private var signedInView: some View {
         Group {
             if store.isLoading, store.pullRequests.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ProgressView()
-                    Text("Refreshing pull requests...")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                loadingPlaceholderCards
             } else if store.pullRequests.isEmpty {
                 Text("No open pull requests found.")
                     .font(.subheadline)
@@ -145,6 +146,67 @@ struct MenuBarContentView: View {
         }
     }
 
+    private var loadingPlaceholderCards: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 6) {
+                ForEach(0 ..< 6, id: \.self) { _ in
+                    placeholderCard
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var placeholderCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Text("#12345 Placeholder pull request title")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 6)
+
+                PillView(
+                    text: "Review Required",
+                    color: .blue
+                )
+            }
+
+            HStack(spacing: 6) {
+                Text("owner/repository")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text("•")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary.opacity(0.7))
+
+                Text("5m ago")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text("•")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary.opacity(0.7))
+
+                Text("@contributor")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.secondary.opacity(0.1))
+        )
+        .redacted(reason: .placeholder)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     private var repoFiltersBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -177,6 +239,52 @@ struct MenuBarContentView: View {
         }
     }
 
+    private var signedInToolbar: some View {
+        HStack(spacing: 8) {
+            Button {
+                Task {
+                    await store.refresh()
+                }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.secondary.opacity(0.12))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Refresh")
+
+            if store.isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            if let lastRefreshedAt = store.lastRefreshedAt {
+                Text("Updated \(lastRefreshedAt.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                store.signOut()
+            } label: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary.opacity(0.75))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+            }
+            .buttonStyle(.plain)
+            .help("Sign out")
+        }
+    }
+
     private var missingClientIDView: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("GitHub OAuth client ID is not configured.")
@@ -185,30 +293,6 @@ struct MenuBarContentView: View {
             Text("Set GitHubOAuthClientID in Project.swift (Info.plist) or export GITHUB_CLIENT_ID before launching.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            if case .signedIn = store.sessionState {
-                Button("Refresh") {
-                    Task {
-                        await store.refresh()
-                    }
-                }
-
-                Button("Sign out") {
-                    store.signOut()
-                }
-            }
-
-            Spacer()
-
-            if let lastRefreshedAt = store.lastRefreshedAt {
-                Text("Updated \(lastRefreshedAt.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 

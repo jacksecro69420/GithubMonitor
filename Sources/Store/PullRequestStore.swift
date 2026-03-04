@@ -12,6 +12,8 @@ enum SessionState {
 @MainActor
 @Observable
 final class PullRequestStore {
+    private let menuOpenRefreshMinimumInterval: TimeInterval = 20
+
     private let config: AppConfig
     private let oauthClient: GitHubOAuthDeviceClient
     private let apiClient: GitHubAPIClient
@@ -213,6 +215,23 @@ final class PullRequestStore {
         } else {
             selectedRepositoryFilter = nil
         }
+    }
+
+    func refreshOnMenuOpenIfNeeded() async {
+        guard case .signedIn = sessionState else {
+            return
+        }
+
+        guard !isLoading else {
+            return
+        }
+
+        if let lastRefreshedAt,
+           Date().timeIntervalSince(lastRefreshedAt) < menuOpenRefreshMinimumInterval {
+            return
+        }
+
+        await refresh()
     }
 
     private func completeSignIn(with token: String) async {
