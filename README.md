@@ -1,6 +1,12 @@
+![GithubMonitor Menubar Screenshot](docs/githubmonitor-menubar.png)
+
 # GithubMonitor
 
-Menubar-only macOS app (Tuist + SwiftUI) to show your recently updated open GitHub pull requests.
+Menubar-only macOS app (Tuist + SwiftUI) to show recently updated open GitHub pull requests across repositories you own or collaborate on.
+
+It includes:
+- status pills (`Draft`, `Review Required`, `Approved`, `Changes Requested`)
+- a horizontal repository pill filter (defaults to `All`, ordered by most recently updated repo)
 
 ## Setup
 
@@ -11,7 +17,7 @@ Menubar-only macOS app (Tuist + SwiftUI) to show your recently updated open GitH
 
 ```bash
 TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
-TUIST_SKIP_UPDATE_CHECK=1 tuist build GithubMonitor --configuration Debug
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild build -scheme GithubMonitor -workspace GithubMonitor.xcworkspace -configuration Debug -destination "platform=macOS,arch=arm64"
 ```
 
 4. Run:
