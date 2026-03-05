@@ -44,8 +44,12 @@ struct MenuBarContentView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(store.selectedFeedHeading)
-                .font(.headline)
+            if case .signedIn = store.sessionState {
+                Text("Feed")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                feedToggle
+            }
 
             Spacer()
 
@@ -107,8 +111,6 @@ struct MenuBarContentView: View {
 
     private var signedInView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            feedToggle
-
             if store.isLoading, store.isSelectedFeedEmpty {
                 loadingPlaceholderCards
             } else if store.isSelectedFeedEmpty {
@@ -224,12 +226,15 @@ struct MenuBarContentView: View {
     }
 
     private var feedToggle: some View {
-        Picker("Feed", selection: feedSelectionBinding) {
+        Picker("", selection: feedSelectionBinding) {
             ForEach(FeedMode.allCases) { mode in
                 Text(mode.title).tag(mode)
             }
         }
+        .labelsHidden()
         .pickerStyle(.segmented)
+        .controlSize(.small)
+        .frame(width: 170)
     }
 
     private var repoFiltersBar: some View {
@@ -274,7 +279,7 @@ struct MenuBarContentView: View {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(6)
+                    .padding(5)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .fill(Color.secondary.opacity(0.12))
@@ -294,7 +299,7 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
+            Spacer(minLength: 6)
 
             Button {
                 store.signOut()
