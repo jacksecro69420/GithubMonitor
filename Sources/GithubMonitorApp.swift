@@ -12,7 +12,7 @@ struct GithubMonitorApp: App {
                     await store.restoreSessionIfNeeded()
                 }
         } label: {
-            Label("GitHub Monitor", systemImage: "arrow.triangle.pull")
+            Label("GitHub Monitor", systemImage: "arrow.triangle.branch")
         }
         .menuBarExtraStyle(.window)
     }
