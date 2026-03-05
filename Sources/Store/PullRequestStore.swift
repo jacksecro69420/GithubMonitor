@@ -2,6 +2,33 @@ import AppKit
 import Foundation
 import Observation
 
+enum FeedMode: String, CaseIterable, Identifiable {
+    case pullRequests
+    case issues
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .pullRequests:
+            return "PRs"
+        case .issues:
+            return "Issues"
+        }
+    }
+
+    var heading: String {
+        switch self {
+        case .pullRequests:
+            return "Open Pull Requests"
+        case .issues:
+            return "Open Issues"
+        }
+    }
+}
+
 enum SessionState {
     case missingClientID
     case signedOut
@@ -25,16 +52,18 @@ final class PullRequestStore {
 
     private(set) var sessionState: SessionState = .signedOut
     private(set) var currentUser: String?
+    private(set) var selectedFeedMode: FeedMode = .pullRequests
     private(set) var pullRequests: [PullRequest] = []
+    private(set) var issues: [Issue] = []
     private(set) var selectedRepositoryFilter: String?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var lastRefreshedAt: Date?
 
     var recentRepositoryFilters: [String] {
-        let latestByRepo = Dictionary(grouping: pullRequests, by: \.repositoryNameWithOwner)
-            .compactMap { repository, pullRequests -> (String, Date)? in
-                guard let latestDate = pullRequests.map(\.updatedAt).max() else {
+        let latestByRepo = Dictionary(grouping: activeFeedRepositoryItems, by: \.repositoryNameWithOwner)
+            .compactMap { repository, items -> (String, Date)? in
+                guard let latestDate = items.map(\.updatedAt).max() else {
                     return nil
                 }
                 return (repository, latestDate)
@@ -57,6 +86,41 @@ final class PullRequestStore {
         return base.sorted { lhs, rhs in
             lhs.updatedAt > rhs.updatedAt
         }
+    }
+
+    var filteredIssues: [Issue] {
+        let base: [Issue]
+        if let selectedRepositoryFilter, !selectedRepositoryFilter.isEmpty {
+            base = issues.filter { $0.repositoryNameWithOwner == selectedRepositoryFilter }
+        } else {
+            base = issues
+        }
+
+        return base.sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
+        }
+    }
+
+    var filteredItemCount: Int {
+        switch selectedFeedMode {
+        case .pullRequests:
+            return filteredPullRequests.count
+        case .issues:
+            return filteredIssues.count
+        }
+    }
+
+    var isSelectedFeedEmpty: Bool {
+        switch selectedFeedMode {
+        case .pullRequests:
+            return pullRequests.isEmpty
+        case .issues:
+            return issues.isEmpty
+        }
+    }
+
+    var selectedFeedHeading: String {
+        selectedFeedMode.heading
     }
 
     init(
@@ -151,7 +215,9 @@ final class PullRequestStore {
         authorizationTask = nil
         accessToken = nil
         currentUser = nil
+        selectedFeedMode = .pullRequests
         pullRequests = []
+        issues = []
         selectedRepositoryFilter = nil
         sessionState = .signedOut
         errorMessage = nil
@@ -176,10 +242,16 @@ final class PullRequestStore {
         errorMessage = nil
 
         do {
-            let payload = try await apiClient.fetchOpenPullRequests(token: token)
-            currentUser = payload.login
-            pullRequests = payload.pullRequests
-            if let selectedRepositoryFilter, !pullRequests.contains(where: { $0.repositoryNameWithOwner == selectedRepositoryFilter }) {
+            async let pullRequestsPayload = apiClient.fetchOpenPullRequests(token: token)
+            async let issuesPayload = apiClient.fetchOpenIssues(token: token)
+
+            let (pullRequestsResult, issuesResult) = try await (pullRequestsPayload, issuesPayload)
+
+            currentUser = pullRequestsResult.login
+            pullRequests = pullRequestsResult.pullRequests
+            issues = issuesResult.issues
+
+            if let selectedRepositoryFilter, !activeFeedHasRepository(selectedRepositoryFilter) {
                 self.selectedRepositoryFilter = nil
             }
             lastRefreshedAt = Date()
@@ -207,6 +279,17 @@ final class PullRequestStore {
 
     func openPullRequest(_ pullRequest: PullRequest) {
         NSWorkspace.shared.open(pullRequest.url)
+    }
+
+    func openIssue(_ issue: Issue) {
+        NSWorkspace.shared.open(issue.url)
+    }
+
+    func selectFeedMode(_ mode: FeedMode) {
+        selectedFeedMode = mode
+        if let selectedRepositoryFilter, !activeFeedHasRepository(selectedRepositoryFilter) {
+            self.selectedRepositoryFilter = nil
+        }
     }
 
     func selectRepositoryFilter(_ repositoryNameWithOwner: String?) {
@@ -250,5 +333,23 @@ final class PullRequestStore {
         sessionState = .signedOut
         isLoading = false
         errorMessage = error.localizedDescription
+    }
+
+    private var activeFeedRepositoryItems: [(repositoryNameWithOwner: String, updatedAt: Date)] {
+        switch selectedFeedMode {
+        case .pullRequests:
+            return pullRequests.map { ($0.repositoryNameWithOwner, $0.updatedAt) }
+        case .issues:
+            return issues.map { ($0.repositoryNameWithOwner, $0.updatedAt) }
+        }
+    }
+
+    private func activeFeedHasRepository(_ repositoryNameWithOwner: String) -> Bool {
+        switch selectedFeedMode {
+        case .pullRequests:
+            return pullRequests.contains { $0.repositoryNameWithOwner == repositoryNameWithOwner }
+        case .issues:
+            return issues.contains { $0.repositoryNameWithOwner == repositoryNameWithOwner }
+        }
     }
 }

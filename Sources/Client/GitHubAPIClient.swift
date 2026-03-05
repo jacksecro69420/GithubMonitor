@@ -25,6 +25,11 @@ struct OpenPullRequestsPayload {
     let pullRequests: [PullRequest]
 }
 
+struct OpenIssuesPayload {
+    let login: String
+    let issues: [Issue]
+}
+
 struct GitHubAPIClient {
     private let session: URLSession
 
@@ -137,6 +142,120 @@ struct GitHubAPIClient {
             throw GitHubAPIError.decodingError
         }
     }
+
+    func fetchOpenIssues(token: String, repositoriesFirst: Int = 40, issuesFirst: Int = 20) async throws -> OpenIssuesPayload {
+        let query = """
+        query OpenIssues($repositoriesFirst: Int!, $issuesFirst: Int!) {
+          viewer {
+            login
+            repositories(
+              first: $repositoriesFirst,
+              affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER],
+              isFork: false,
+              orderBy: {field: UPDATED_AT, direction: DESC}
+            ) {
+              nodes {
+                nameWithOwner
+                issues(first: $issuesFirst, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    id
+                    number
+                    title
+                    url
+                    updatedAt
+                    author {
+                      login
+                    }
+                    labels(first: 3) {
+                      nodes {
+                        id
+                        name
+                        color
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        let payload = GraphQLRequest(
+            query: query,
+            variables: [
+                "repositoriesFirst": .number(repositoriesFirst),
+                "issuesFirst": .number(issuesFirst)
+            ]
+        )
+
+        var request = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+
+        if http.statusCode == 401 {
+            throw GitHubAPIError.unauthorized
+        }
+
+        guard (200 ... 299).contains(http.statusCode) else {
+            throw GitHubAPIError.serverError("GitHub API error (\(http.statusCode)).")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        do {
+            let graphQLResponse = try decoder.decode(OpenIssuesGraphQLResponse.self, from: data)
+
+            if let firstError = graphQLResponse.errors?.first {
+                throw GitHubAPIError.serverError(firstError.message)
+            }
+
+            guard let viewer = graphQLResponse.data?.viewer else {
+                throw GitHubAPIError.invalidResponse
+            }
+
+            var issuesByID: [String: Issue] = [:]
+
+            for repository in viewer.repositories.nodes {
+                for node in repository.issues.nodes {
+                    let labels = node.labels.nodes.map {
+                        IssueLabel(id: $0.id, name: $0.name, colorHex: $0.color)
+                    }
+
+                    issuesByID[node.id] = Issue(
+                        id: node.id,
+                        number: node.number,
+                        title: node.title,
+                        url: node.url,
+                        repositoryNameWithOwner: repository.nameWithOwner,
+                        authorLogin: node.author?.login ?? "unknown",
+                        updatedAt: node.updatedAt,
+                        labels: labels
+                    )
+                }
+            }
+
+            let issues = issuesByID.values.sorted { lhs, rhs in
+                lhs.updatedAt > rhs.updatedAt
+            }
+
+            return OpenIssuesPayload(login: viewer.login, issues: issues)
+        } catch let apiError as GitHubAPIError {
+            throw apiError
+        } catch {
+            throw GitHubAPIError.decodingError
+        }
+    }
 }
 
 private struct GraphQLRequest: Encodable {
@@ -194,6 +313,61 @@ private struct OpenPullRequestsGraphQLResponse: Decodable {
         let isDraft: Bool
         let reviewDecision: PullRequestReviewDecision?
         let author: Author?
+    }
+
+    struct Author: Decodable {
+        let login: String
+    }
+
+    struct GraphQLErrorItem: Decodable {
+        let message: String
+    }
+}
+
+private struct OpenIssuesGraphQLResponse: Decodable {
+    let data: DataNode?
+    let errors: [GraphQLErrorItem]?
+
+    struct DataNode: Decodable {
+        let viewer: Viewer
+    }
+
+    struct Viewer: Decodable {
+        let login: String
+        let repositories: RepositoryConnection
+    }
+
+    struct RepositoryConnection: Decodable {
+        let nodes: [RepositoryNode]
+    }
+
+    struct RepositoryNode: Decodable {
+        let nameWithOwner: String
+        let issues: IssueConnection
+    }
+
+    struct IssueConnection: Decodable {
+        let nodes: [IssueNode]
+    }
+
+    struct IssueNode: Decodable {
+        let id: String
+        let number: Int
+        let title: String
+        let url: URL
+        let updatedAt: Date
+        let author: Author?
+        let labels: LabelConnection
+    }
+
+    struct LabelConnection: Decodable {
+        let nodes: [LabelNode]
+    }
+
+    struct LabelNode: Decodable {
+        let id: String
+        let name: String
+        let color: String
     }
 
     struct Author: Decodable {

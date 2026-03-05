@@ -44,7 +44,7 @@ struct MenuBarContentView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Open Pull Requests")
+            Text(store.selectedFeedHeading)
                 .font(.headline)
 
             Spacer()
@@ -59,7 +59,7 @@ struct MenuBarContentView: View {
 
     private var signedOutView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Sign in to list your recently updated open pull requests.")
+            Text("Sign in to list your recently updated open pull requests and open issues.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -106,41 +106,50 @@ struct MenuBarContentView: View {
     }
 
     private var signedInView: some View {
-        Group {
-            if store.isLoading, store.pullRequests.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+            feedToggle
+
+            if store.isLoading, store.isSelectedFeedEmpty {
                 loadingPlaceholderCards
-            } else if store.pullRequests.isEmpty {
-                Text("No open pull requests found.")
+            } else if store.isSelectedFeedEmpty {
+                Text("No open \(store.selectedFeedMode == .pullRequests ? "pull requests" : "issues") found.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    repoFiltersBar
+                repoFiltersBar
 
-                    HStack {
-                        Text("\(store.filteredPullRequests.count) result\(store.filteredPullRequests.count == 1 ? "" : "s")")
-                            .font(.caption)
+                HStack {
+                    Text("\(store.filteredItemCount) result\(store.filteredItemCount == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    if let selectedRepository = store.selectedRepositoryFilter {
+                        Text(selectedRepository)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        if let selectedRepository = store.selectedRepositoryFilter {
-                            Text(selectedRepository)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
                     }
+                }
 
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 6) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        switch store.selectedFeedMode {
+                        case .pullRequests:
                             ForEach(store.filteredPullRequests) { pullRequest in
                                 PullRequestRowView(pullRequest: pullRequest) {
                                     store.openPullRequest(pullRequest)
                                 }
                             }
+                        case .issues:
+                            ForEach(store.filteredIssues) { issue in
+                                IssueRowView(issue: issue) {
+                                    store.openIssue(issue)
+                                }
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -160,7 +169,7 @@ struct MenuBarContentView: View {
     private var placeholderCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
-                Text("#12345 Placeholder pull request title")
+                Text(placeholderTitleText)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -168,8 +177,8 @@ struct MenuBarContentView: View {
                 Spacer(minLength: 6)
 
                 PillView(
-                    text: "Review Required",
-                    color: .blue
+                    text: placeholderStatusText,
+                    color: placeholderStatusColor
                 )
             }
 
@@ -194,6 +203,13 @@ struct MenuBarContentView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
+
+            if store.selectedFeedMode == .issues {
+                HStack(spacing: 4) {
+                    PillView(text: "bug", color: .red)
+                    PillView(text: "triage", color: .purple)
+                }
+            }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
@@ -207,6 +223,15 @@ struct MenuBarContentView: View {
         .accessibilityHidden(true)
     }
 
+    private var feedToggle: some View {
+        Picker("Feed", selection: feedSelectionBinding) {
+            ForEach(FeedMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
     private var repoFiltersBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -214,7 +239,7 @@ struct MenuBarContentView: View {
                     store.selectRepositoryFilter(nil)
                 } label: {
                     PillView(
-                        text: "All \(store.pullRequests.count)",
+                        text: "All \(allCountForActiveFeed)",
                         color: .secondary,
                         isSelected: store.selectedRepositoryFilter == nil
                     )
@@ -304,7 +329,12 @@ struct MenuBarContentView: View {
     }
 
     private func count(for repository: String) -> Int {
-        store.pullRequests.filter { $0.repositoryNameWithOwner == repository }.count
+        switch store.selectedFeedMode {
+        case .pullRequests:
+            return store.pullRequests.filter { $0.repositoryNameWithOwner == repository }.count
+        case .issues:
+            return store.issues.filter { $0.repositoryNameWithOwner == repository }.count
+        }
     }
 
     private func color(for repository: String) -> Color {
@@ -313,5 +343,48 @@ struct MenuBarContentView: View {
             ((partial * 31) + Int(scalar.value)) & 0x7fff_ffff
         }
         return palette[hash % palette.count]
+    }
+
+    private var allCountForActiveFeed: Int {
+        switch store.selectedFeedMode {
+        case .pullRequests:
+            return store.pullRequests.count
+        case .issues:
+            return store.issues.count
+        }
+    }
+
+    private var feedSelectionBinding: Binding<FeedMode> {
+        Binding(
+            get: { store.selectedFeedMode },
+            set: { store.selectFeedMode($0) }
+        )
+    }
+
+    private var placeholderTitleText: String {
+        switch store.selectedFeedMode {
+        case .pullRequests:
+            return "#12345 Placeholder pull request title"
+        case .issues:
+            return "#12345 Placeholder issue title"
+        }
+    }
+
+    private var placeholderStatusText: String {
+        switch store.selectedFeedMode {
+        case .pullRequests:
+            return "Review Required"
+        case .issues:
+            return "Open"
+        }
+    }
+
+    private var placeholderStatusColor: Color {
+        switch store.selectedFeedMode {
+        case .pullRequests:
+            return .blue
+        case .issues:
+            return .mint
+        }
     }
 }
