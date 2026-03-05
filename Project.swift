@@ -20,7 +20,12 @@ let project = Project(
                 "LSUIElement": true,
                 "GitHubOAuthClientID": "Ov23liFsaI8OBg0R8qH8"
             ]),
-            sources: ["Sources/**"]
+            sources: ["Sources/**"],
+            settings: .settings(base: [
+                "CODE_SIGN_STYLE": "Manual",
+                "CODE_SIGN_IDENTITY": "Developer ID Application",
+                "DEVELOPMENT_TEAM": "Z6P74P6T99"
+            ])
         )
     ]
 )
